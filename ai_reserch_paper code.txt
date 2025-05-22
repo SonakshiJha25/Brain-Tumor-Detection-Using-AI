@@ -1,0 +1,113 @@
+import numpy as np
+import cv2
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.svm import SVC
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, r2_score, mean_squared_error
+from sklearn.model_selection import StratifiedKFold
+import os
+
+# Preprocessing
+def preprocess_image(image_path):
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    img = cv2.resize(img, (100, 100))  # Resize the image to a fixed size
+    img = img.astype('float32') / 255.0  # Normalize pixel values
+    return img
+
+# Load and preprocess images from folder
+def load_images_from_folder(folder):
+    images = []
+    labels = []
+    for class_name in os.listdir(folder):
+        class_folder = os.path.join(folder, class_name)
+        if os.path.isdir(class_folder):
+            label = 1 if class_name.lower() == 'yes' else 0
+            for filename in os.listdir(class_folder):
+                img_path = os.path.join(class_folder, filename)
+                if img_path.endswith('.jpg') or img_path.endswith('.jpeg'):
+                    try:
+                        img = preprocess_image(img_path)
+                        if img is not None:
+                            images.append(img)
+                            labels.append(label)
+                    except Exception as e:
+                        print(f"Error loading image {img_path}: {str(e)}")
+    return images, labels
+
+# Load dataset
+images, labels = load_images_from_folder(r'C:/Users/gkcha/Downloads/brain_tumor_dataset')
+
+# Convert lists to numpy arrays
+images = np.array(images)
+labels = np.array(labels)
+
+# Flatten images
+X_flattened = images.reshape(len(images), -1)
+
+# Stratified K-Fold Cross-Validation
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=47)
+
+# Initialize models
+svm_model = SVC(kernel='linear')
+kernel = 1.0 * RBF(length_scale=1.0)
+rbfnn_model = GaussianProcessClassifier(kernel=kernel)
+bpnn_model = MLPClassifier(hidden_layer_sizes=(100,), activation='relu', solver='adam', max_iter=1000)
+
+# Initialize scalers for BPNN
+scaler = StandardScaler()
+
+# Store evaluation metrics
+svm_accuracies, rbfnn_accuracies, bpnn_accuracies = [], [], []
+svm_r2_scores, rbfnn_r2_scores, bpnn_r2_scores = [], [], []
+svm_rmse_scores, rbfnn_rmse_scores, bpnn_rmse_scores = [], [], []
+svm_mse_scores, rbfnn_mse_scores, bpnn_mse_scores = [], [], []
+
+# Cross-validation loop
+for train_index, test_index in skf.split(X_flattened, labels):
+    X_train, X_test = X_flattened[train_index], X_flattened[test_index]
+    y_train, y_test = labels[train_index], labels[test_index]
+
+    # SVM Model
+    svm_model.fit(X_train, y_train)
+    svm_predictions = svm_model.predict(X_test)
+    svm_accuracies.append(accuracy_score(y_test, svm_predictions))
+    svm_r2_scores.append(r2_score(y_test, svm_predictions))
+    svm_mse_scores.append(mean_squared_error(y_test, svm_predictions))
+    svm_rmse_scores.append(np.sqrt(mean_squared_error(y_test, svm_predictions)))
+
+    # RBFNN Model
+    rbfnn_model.fit(X_train, y_train)
+    rbfnn_predictions = rbfnn_model.predict(X_test)
+    rbfnn_accuracies.append(accuracy_score(y_test, rbfnn_predictions))
+    rbfnn_r2_scores.append(r2_score(y_test, rbfnn_predictions))
+    rbfnn_mse_scores.append(mean_squared_error(y_test, rbfnn_predictions))
+    rbfnn_rmse_scores.append(np.sqrt(mean_squared_error(y_test, rbfnn_predictions)))
+
+    # BPNN Model (with standardized features)
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    bpnn_model.fit(X_train_scaled, y_train)
+    bpnn_predictions = bpnn_model.predict(X_test_scaled)
+    bpnn_accuracies.append(accuracy_score(y_test, bpnn_predictions))
+    bpnn_r2_scores.append(r2_score(y_test, bpnn_predictions))
+    bpnn_mse_scores.append(mean_squared_error(y_test, bpnn_predictions))
+    bpnn_rmse_scores.append(np.sqrt(mean_squared_error(y_test, bpnn_predictions)))
+
+# Print average performance metrics across all folds
+print("SVM Average Accuracy:", np.mean(svm_accuracies))
+print("SVM Average R2:", np.mean(svm_r2_scores))
+print("SVM Average MSE:",np.mean(svm_mse_scores))
+print("SVM Average RMSE:", np.mean(svm_rmse_scores))
+
+
+print("RBFNN Average Accuracy:", np.mean(rbfnn_accuracies))
+print("RBFNN Average R2:", np.mean(rbfnn_r2_scores))
+print("RBFNN Average MSE:",np.mean(rbfnn_mse_scores))
+print("RBFNN Average RMSE:", np.mean(rbfnn_rmse_scores))
+
+print("BPNN Average Accuracy:", np.mean(bpnn_accuracies))
+print("BPNN Average R2:", np.mean(bpnn_r2_scores))
+print("BPNN Average MSE:",np.mean(bpnn_mse_scores))
+print("BPNN Average RMSE:", np.mean(bpnn_rmse_scores))

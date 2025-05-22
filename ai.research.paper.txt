@@ -1,0 +1,143 @@
+import numpy as np
+import cv2
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+import os
+
+# Preprocessing
+def preprocess_image(image_path):
+    img = cv2.imread(image_path)
+    img = cv2.resize(img, (100, 100))  # Resize the image to a fixed size
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # Convert to grayscale
+    img = img.astype('float32') / 255.0  # Normalize pixel values
+    return img
+
+# Load and preprocess images from folder
+def load_images_from_folder(folder):
+    images = []
+    labels = []
+    for class_name in os.listdir(folder):
+        class_folder = os.path.join(folder, class_name)
+        if os.path.isdir(class_folder):
+            label = 1 if class_name.lower() == 'yes' else 0
+            for filename in os.listdir(class_folder):
+                img_path = os.path.join(class_folder, filename)
+                if img_path.endswith('.jpg') or img_path.endswith('.jpeg'):
+                    try:
+                        img = preprocess_image(img_path)
+                        if img is not None:
+                            images.append(img)
+                            labels.append(label)
+                        else:
+                            print(f"Warning: Failed to preprocess image: {img_path}")
+                    except Exception as e:
+                        print(f"Error loading image {img_path}: {str(e)}")
+    return images, labels
+
+# Load dataset
+images, labels = load_images_from_folder(r'C:/Users/gkcha/Downloads/brain_tumor_dataset')
+
+# Convert lists to numpy arrays
+images = np.array(images)
+labels = np.array(labels)
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.2, random_state=47)
+
+# Flatten images
+X_train_flattened = X_train.reshape(len(X_train), -1)
+X_test_flattened = X_test.reshape(len(X_test), -1)
+
+# Support Vector Machine (SVM)
+svm_model = SVC(kernel='linear')
+svm_model.fit(X_train_flattened, y_train)
+svm_predictions = svm_model.predict(X_test_flattened)
+svm_accuracy = accuracy_score(y_test, svm_predictions)
+# Radial Basis Function Neural Network (RBFNN)
+rbfnn_model = MLPClassifier(hidden_layer_sizes=(100,), activation='relu', solver='adam', max_iter=1000)
+rbfnn_model.fit(X_train_flattened, y_train)
+rbfnn_predictions = rbfnn_model.predict(X_test_flattened)
+rbfnn_accuracy = accuracy_score(y_test, rbfnn_predictions)
+
+# Backpropagation Neural Network (BPNN)
+# Standardize features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train_flattened)
+X_test_scaled = scaler.transform(X_test_flattened)
+
+# Backpropagation Neural Network (BPNN)
+bpnn_model = MLPClassifier(hidden_layer_sizes=(100,), activation='relu', solver='adam', max_iter=1000)
+bpnn_model.fit(X_train_scaled, y_train)
+bpnn_predictions = bpnn_model.predict(X_test_scaled)
+bpnn_accuracy = accuracy_score(y_test, bpnn_predictions)
+
+# Convolutional Neural Network (CNN)
+
+# Reshape images for CNN
+X_train_cnn = X_train.reshape(-1, 100, 100, 1)  # Add a channel dimension for CNN
+X_test_cnn = X_test.reshape(-1, 100, 100, 1)
+
+# Convolutional Neural Network (CNN)
+cnn_model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(100, 100, 1)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(64, activation='relu'),
+    Dense(1, activation='sigmoid')
+])
+
+cnn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+cnn_model.fit(X_train_cnn, y_train, epochs=10, batch_size=32)
+
+# Evaluate CNN on test set
+cnn_loss, cnn_accuracy = cnn_model.evaluate(X_test_cnn, y_test)
+
+
+# Evaluate CNN on test set
+X_test_cnn = X_test.reshape(-1, 100, 100, 1)
+cnn_loss, cnn_accuracy = cnn_model.evaluate(X_test_cnn, y_test)
+
+# Extract features from CNN
+cnn_features_model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(100, 100, 1)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(64, activation='relu')
+])
+
+cnn_features_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+cnn_features = cnn_features_model.predict(X_train_cnn)
+
+# Combine CNN features with flattened images
+X_train_combined = np.concatenate((X_train_flattened, cnn_features), axis=1)
+
+# Radial Basis Function Neural Network (RBFNN) using combined features
+rbfnn_model_hybrid = MLPClassifier(hidden_layer_sizes=(100,), activation='relu', solver='adam', max_iter=1000)
+rbfnn_model_hybrid.fit(X_train_combined, y_train)
+
+# Extract features from CNN for test data
+cnn_features_test = cnn_features_model.predict(X_test_cnn)
+
+# Combine CNN features with flattened test images
+X_test_combined = np.concatenate((X_test_flattened, cnn_features_test), axis=1)
+
+# Predict using the RBFNN with combined features
+rbfnn_predictions_hybrid = rbfnn_model_hybrid.predict(X_test_combined)
+rbfnn_accuracy_hybrid = accuracy_score(y_test, rbfnn_predictions_hybrid)
+
+
+print("Hybrid RBFNN-CNN Accuracy:", rbfnn_accuracy_hybrid)
+print("SVM Accuracy:", svm_accuracy)
+print("RBFNN Accuracy:", rbfnn_accuracy)
+print("BPNN Accuracy:", bpnn_accuracy)
+print("CNN Accuracy:", cnn_accuracy)
