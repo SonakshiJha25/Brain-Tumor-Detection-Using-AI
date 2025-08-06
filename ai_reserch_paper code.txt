@@ -71,8 +71,8 @@ for train_index, test_index in skf.split(X_flattened, labels):
 
     # SVM Model
     svm_model.fit(X_train, y_train)
-    svm_predictions = svm_model.predict(X_test)
-    svm_accuracies.append(accuracy_score(y_test, svm_predictions))
+    svm_predictions = svm_model.predict(X_test) 
+    svm_accuracies.append(accuracy_score (y_test, svm_predictions))
     svm_r2_scores.append(r2_score(y_test, svm_predictions))
     svm_mse_scores.append(mean_squared_error(y_test, svm_predictions))
     svm_rmse_scores.append(np.sqrt(mean_squared_error(y_test, svm_predictions)))
@@ -110,4 +110,5 @@ print("RBFNN Average RMSE:", np.mean(rbfnn_rmse_scores))
 print("BPNN Average Accuracy:", np.mean(bpnn_accuracies))
 print("BPNN Average R2:", np.mean(bpnn_r2_scores))
 print("BPNN Average MSE:",np.mean(bpnn_mse_scores))
+
 print("BPNN Average RMSE:", np.mean(bpnn_rmse_scores))
